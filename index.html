@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sistema de Auto-Monitoramento</title>
+<style>
+  html, body {
+    font-family: 'Arial', sans-serif;
+    background-color: #121212;
+    color: #f1f1f1;
+    margin: 0;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  header {
+    background-color: #1e1e1e;
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  header button {
+    background: none;
+    border: none;
+    color: #bbb;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 5px;
+  }
+  header button.active {
+    background-color: #6200ea;
+    color: #fff;
+  }
+
+  main {
+    padding: 20px;
+    max-width: 800px;
+    margin: auto;
+  }
+
+  button {
+    background-color: #6200ea;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    margin: 5px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  button:hover { background-color: #7e3ff2; }
+
+  input, textarea {
+    width: 100%;
+    background-color: #222;
+    color: white;
+    border: 1px solid #444;
+    padding: 8px;
+    margin: 6px 0;
+    border-radius: 4px;
+    font-size: 16px;
+  }
+  textarea:focus, input:focus {
+    outline: none;
+    border-color: #6200ea;
+    transform: scale(1);
+  }
+
+  #sentimentoModal {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.95);
+    overflow-y: auto;
+    padding: 20px;
+    z-index: 10;
+  }
+
+  .grupo { margin-bottom: 20px; }
+  .grupo h3 { color: #bb86fc; margin-bottom: 5px; }
+  .subgrupo strong { display: block; margin-top: 5px; color: #03dac6; }
+  .subgrupo span {
+    display: inline-block;
+    margin: 3px;
+    padding: 4px 8px;
+    background-color: #333;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .subgrupo span:hover { background-color: #6200ea; }
+
+  .timeline {
+    border-left: 3px solid #6200ea;
+    padding-left: 10px;
+    margin-top: 20px;
+  }
+
+  .registro {
+    margin-bottom: 20px;
+    padding-left: 10px;
+    border-left: 2px solid #333;
+  }
+
+  .registro h4 { margin-bottom: 5px; color: #bb86fc; }
+
+  .slider-container {
+    margin-top: 10px;
+    text-align: center;
+  }
+
+  .slider-container input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 70%;
+    height: 8px;
+    border-radius: 5px;
+    background: #6200ea;
+    outline: none;
+  }
+
+  .slider-container input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    background: #bb86fc;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+
+  .slider-container label {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 16px;
+  }
+
+  #nomeArquivoAtual {
+    margin-top: 10px;
+    color: #aaa;
+    font-size: 14px;
+  }
+
+  .confirmar-container {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <button id="btnNovo" class="active" onclick="abrirAba('novo')">Novo Registro</button>
+  <button id="btnRegistros" onclick="abrirAba('registros')">Registros</button>
+</header>
+
+<main>
+  <div id="inicio">
+    <button onclick="novoArquivo()">🆕 Criar novo arquivo JSON</button>
+    <button onclick="document.getElementById('inputArquivo').click()">📂 Carregar arquivo JSON</button>
+    <input type="file" id="inputArquivo" accept=".json" style="display:none" onchange="carregarArquivo(event)">
+  </div>
+
+  <div id="abaNovo" style="display:none">
+    <textarea id="situacao" placeholder="Situação"></textarea>
+    <textarea id="pensamento" placeholder="Pensamento"></textarea>
+    <button onclick="abrirModalSentimento()">Selecionar Sentimento</button>
+    <div id="sentimentosSelecionados"></div>
+    <textarea id="comportamento" placeholder="Comportamento"></textarea>
+    <textarea id="consequencia" placeholder="Consequência"></textarea>
+
+    <div>
+      <button onclick="salvarRegistro()">💾 Salvar Registro</button>
+      <button onclick="document.getElementById('inputArquivoOutro').click()">📂 Abrir outro .json</button>
+      <input type="file" id="inputArquivoOutro" accept=".json" style="display:none" onchange="abrirOutroArquivo(event)">
+      <button onclick="baixarJSON()">⬇️ Baixar JSON</button>
+      <button onclick="limparLocalStorage()">🧹 Limpar dados locais</button>
+    </div>
+    <div id="nomeArquivoAtual"></div>
+  </div>
+
+  <div id="abaRegistros" style="display:none">
+    <h2>Registros</h2>
+    <div class="timeline" id="registrosContainer"></div>
+  </div>
+</main>
+
+<!-- Modal Sentimentos -->
+<div id="sentimentoModal">
+  <h2>Selecione o Sentimento</h2>
+  <div id="listaSentimentos"></div>
+  <div class="slider-container" id="sliderContainer" style="display:none;">
+    <label>Intensidade: <span id="valorIntensidade">5</span>/10</label>
+    <input type="range" id="intensidadeSlider" min="0" max="10" value="5">
+    <div class="confirmar-container">
+      <button onclick="confirmarSentimento()">Confirmar</button>
+      <button onclick="fecharModalSentimento()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let dados = { registros: [] };
+let sentimentosSelecionados = [];
+let emocaoSelecionada = "";
+let nomeArquivo = "auto_monitoramento.json";
+
+// --- AUTO SALVAMENTO LOCAL STORAGE ---
+window.addEventListener("load", () => {
+  const dadosSalvos = localStorage.getItem("autoMonitoramento");
+  if (dadosSalvos) {
+    try {
+      dados = JSON.parse(dadosSalvos);
+      atualizarRegistros();
+      console.log("Registros carregados do localStorage");
+    } catch (e) {
+      console.error("Erro ao carregar dados do localStorage:", e);
+    }
+  }
+});
+
+function salvarLocalStorage() {
+  localStorage.setItem("autoMonitoramento", JSON.stringify(dados));
+}
+
+function limparLocalStorage() {
+  if (confirm("Deseja realmente apagar todos os dados locais salvos?")) {
+    localStorage.removeItem("autoMonitoramento");
+    dados = { registros: [] };
+    atualizarRegistros();
+    alert("Dados locais apagados com sucesso!");
+  }
+}
+
+const sentimentos = {
+  "Valência Positiva": {
+    "Alegria e Exaltação": ["Alegria","Satisfação","Prazer","Euforia","Excitação","Êxtase"],
+    "Tranquilidade e Estabilidade": ["Calma","Paz","Alívio"],
+    "Otimismo e Impulso": ["Esperança","Confiança","Entusiasmo","Vitalidade","Coragem","Determinação","Resiliência"],
+    "Afeto e Conexão": ["Amor","Carinho","Paixão","Desejo","Afeição","Gratidão","Admiração","Reverência","Empatia","Compaixão","Pertença"],
+    "Auto-Estima e Virtude": ["Orgulho","Humildade"],
+    "Foco e Descoberta": ["Curiosidade","Interesse","Intuição","Seriedade"]
+  },
+  "Valência Negativa": {
+    "Tristeza e Sofrimento": ["Tristeza","Mágoa","Desespero","Angústia","Desânimo","Melancolia","Vazio","Nostalgia"],
+    "Raiva e Hostilidade": ["Raiva","Ódio","Irritação","Desprezo","Aborrecimento"],
+    "Medo e Insegurança": ["Medo","Pavor","Ansiedade","Preocupação","Nervosismo","Insegurança","Vulnerabilidade"],
+    "Frustração e Decepção": ["Frustração","Desapontamento","Decepção","Ressentimento","Remorso","Amargura"],
+    "Auto-Crítica e Julgamento": ["Culpa","Vergonha"],
+    "Conflito Interpessoal": ["Ciúme","Inveja","Arrogância","Desconfiança"],
+    "Repulsa e Aversão": ["Nojo","Exclusão"],
+    "Estados de Dúvida/Baixa Energia": ["Confusão","Ceticismo","Descrença","Apatia","Tédio","Cansaço"],
+    "Reação Intensa (Geralmente Negativa)": ["Surpresa","Choque"]
+  }
+};
+
+function atualizarNomeArquivo(){
+  document.getElementById("nomeArquivoAtual").textContent = "Arquivo atual: " + nomeArquivo;
+}
+
+function abrirAba(aba){
+  document.getElementById("btnNovo").classList.remove("active");
+  document.getElementById("btnRegistros").classList.remove("active");
+  document.getElementById("abaNovo").style.display = "none";
+  document.getElementById("abaRegistros").style.display = "none";
+  if(aba === "novo"){
+    document.getElementById("btnNovo").classList.add("active");
+    document.getElementById("abaNovo").style.display = "block";
+  } else {
+    document.getElementById("btnRegistros").classList.add("active");
+    document.getElementById("abaRegistros").style.display = "block";
+    atualizarRegistros();
+  }
+}
+
+function novoArquivo() {
+  const nome = prompt("Digite o nome do novo arquivo (ex: registros_tcc.json):");
+  nomeArquivo = nome && nome.trim() !== "" ? nome.trim() : "auto_monitoramento.json";
+
+  const manterDados = confirm("Deseja adicionar os dados armazenados localmente?");
+  
+  if (manterDados) {
+    const dadosSalvos = localStorage.getItem("autoMonitoramento");
+    if (dadosSalvos) {
+      try {
+        dados = JSON.parse(dadosSalvos);
+      } catch {
+        dados = { registros: [] };
+      }
+    } else {
+      dados = { registros: [] };
+    }
+  } else {
+    dados = { registros: [] };
+    localStorage.removeItem("autoMonitoramento");
+  }
+
+  salvarLocalStorage();
+  document.getElementById("inicio").style.display = "none";
+  abrirAba("novo");
+  atualizarNomeArquivo();
+}
+function carregarArquivo(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  nomeArquivo = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const dadosArquivo = JSON.parse(e.target.result);
+      const dadosSalvos = JSON.parse(localStorage.getItem("autoMonitoramento")) || { registros: [] };
+
+      // Evitar registros duplicados
+      const novosRegistros = dadosArquivo.registros.filter(novo =>
+        !dadosSalvos.registros.some(existente =>
+          JSON.stringify(existente) === JSON.stringify(novo)
+        )
+      );
+
+      if (novosRegistros.length > 0) {
+        dadosSalvos.registros.push(...novosRegistros);
+      }
+
+      dados = dadosSalvos;
+      salvarLocalStorage();
+      document.getElementById("inicio").style.display = "none";
+      abrirAba("novo");
+      atualizarNomeArquivo();
+      alert(`Arquivo carregado com sucesso! (${novosRegistros.length} novos registros adicionados)`);
+    } catch {
+      alert("Arquivo JSON inválido.");
+    }
+  };
+  reader.readAsText(file);
+}
+function abrirOutroArquivo(event){
+  const file = event.target.files[0];
+  if (!file) return;
+  nomeArquivo = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const dadosArquivo = JSON.parse(e.target.result);
+      const dadosSalvos = JSON.parse(localStorage.getItem("autoMonitoramento")) || { registros: [] };
+
+      // Evitar registros duplicados (comparação profunda)
+      const novosRegistros = dadosArquivo.registros.filter(novo =>
+        !dadosSalvos.registros.some(existente =>
+          JSON.stringify(existente) === JSON.stringify(novo)
+        )
+      );
+
+      if (novosRegistros.length > 0) {
+        dadosSalvos.registros.push(...novosRegistros);
+        alert(`Foram adicionados ${novosRegistros.length} novos registros.`);
+      } else {
+        alert("Nenhum novo registro foi adicionado (todos já existiam).");
+      }
+
+      dados = dadosSalvos;
+      salvarLocalStorage();
+      atualizarNomeArquivo();
+      atualizarRegistros();
+    } catch {
+      alert("Arquivo JSON inválido.");
+    }
+  };
+  reader.readAsText(file);
+}
+
+function abrirModalSentimento(){
+  const modal = document.getElementById("sentimentoModal");
+  const lista = document.getElementById("listaSentimentos");
+  const sliderBox = document.getElementById("sliderContainer");
+  lista.innerHTML = "";
+  sliderBox.style.display = "none";
+  for (const grupo in sentimentos){
+    const divGrupo = document.createElement("div");
+    divGrupo.className = "grupo";
+    const h2 = document.createElement("h2");
+    h2.textContent = grupo;
+    divGrupo.appendChild(h2);
+    for (const sub in sentimentos[grupo]){
+      const divSub = document.createElement("div");
+      divSub.className = "subgrupo";
+      divSub.innerHTML = `<strong>${sub}</strong>`;
+      sentimentos[grupo][sub].forEach(emocao=>{
+        const span = document.createElement("span");
+        span.textContent = emocao;
+        span.onclick = ()=>selecionarIntensidade(emocao);
+        divSub.appendChild(span);
+      });
+      divGrupo.appendChild(divSub);
+    }
+    lista.appendChild(divGrupo);
+  }
+  modal.style.display = "block";
+}
+
+function selecionarIntensidade(emocao){
+  emocaoSelecionada = emocao;
+  document.getElementById("sliderContainer").style.display = "block";
+  document.getElementById("listaSentimentos").style.display = "none";
+  document.getElementById("valorIntensidade").textContent = "5";
+  document.getElementById("intensidadeSlider").value = 5;
+}
+
+document.getElementById("intensidadeSlider").addEventListener("input", e => {
+  document.getElementById("valorIntensidade").textContent = e.target.value;
+});
+
+function confirmarSentimento(){
+  const intensidade = parseInt(document.getElementById("intensidadeSlider").value) * 10;
+  sentimentosSelecionados.push({ emocao: emocaoSelecionada, intensidade });
+  mostrarSentimentosSelecionados();
+  fecharModalSentimento();
+}
+
+function mostrarSentimentosSelecionados(){
+  const div = document.getElementById("sentimentosSelecionados");
+  div.innerHTML = sentimentosSelecionados.map(s=>`${s.emocao} (${s.intensidade}/100)`).join(", ");
+}
+
+function fecharModalSentimento(){
+  document.getElementById("sentimentoModal").style.display="none";
+  document.getElementById("listaSentimentos").style.display="block";
+  document.getElementById("sliderContainer").style.display="none";
+}
+
+function salvarRegistro(){
+  const novo = {
+    id: dados.registros.length + 1,
+    data_hora: new Date().toISOString(),
+    situacao: document.getElementById("situacao").value,
+    pensamento: document.getElementById("pensamento").value,
+    sentimentos: sentimentosSelecionados,
+    comportamento: document.getElementById("comportamento").value,
+    consequencia: document.getElementById("consequencia").value
+  };
+  dados.registros.push(novo);
+  salvarLocalStorage();
+  sentimentosSelecionados = [];
+  document.getElementById("situacao").value = "";
+  document.getElementById("pensamento").value = "";
+  document.getElementById("comportamento").value = "";
+  document.getElementById("consequencia").value = "";
+  document.getElementById("sentimentosSelecionados").innerHTML = "";
+  atualizarRegistros();
+  alert("Registro salvo!");
+}
+
+function atualizarRegistros(){
+  const container = document.getElementById("registrosContainer");
+  container.innerHTML = "";
+  dados.registros.slice().reverse().forEach(reg=>{
+    const div = document.createElement("div");
+    div.className = "registro";
+    div.innerHTML = `
+      <h4>${new Date(reg.data_hora).toLocaleString()}</h4>
+      <p><strong>Situação:</strong> ${reg.situacao}</p>
+      <p><strong>Pensamento:</strong> ${reg.pensamento}</p>
+      <p><strong>Sentimentos:</strong> ${reg.sentimentos.map(s=>`${s.emocao} (${s.intensidade}/100)`).join(", ")}</p>
+      <p><strong>Comportamento:</strong> ${reg.comportamento}</p>
+      <p><strong>Consequência:</strong> ${reg.consequencia}</p>
+      <button onclick="excluirRegistro(${reg.id})">🗑️ Excluir</button>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function excluirRegistro(id){
+  if(confirm("Deseja excluir este registro?")){
+    dados.registros = dados.registros.filter(r=>r.id!==id);
+    salvarLocalStorage();
+    atualizarRegistros();
+  }
+}
+
+function baixarJSON(){
+  const json = JSON.stringify(dados, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nomeArquivo;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
